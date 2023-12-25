@@ -1,0 +1,18 @@
+---
+
+- name: Check if rust is installed
+  ansible.builtin.stat:
+    path: $HOME/.cargo/bin/rustup
+  register: rust_installed
+
+- name: Install Rust
+  block: 
+    - name: Download Rust install script
+      ansible.builtin.shell: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rust.sh
+      args:
+        chdir: /tmp
+        creates: rust.sh
+
+    - name: Install Rust
+      ansible.builtin.shell: /bin/bash /tmp/rust.sh -y
+  when: not rust_installed

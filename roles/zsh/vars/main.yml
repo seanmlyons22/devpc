@@ -1,0 +1,5 @@
+# vars file for oh_my_zsh
+fdfind: fd-find
+dustversion: v0.8.6
+procsversion: v0.14.4
+

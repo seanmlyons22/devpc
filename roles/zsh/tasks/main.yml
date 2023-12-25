@@ -1,0 +1,140 @@
+---
+
+# This file is based on this wonderful blog
+# Credit to Lorenzo
+# https://www.lorenzobettini.it/2023/07/my-ansible-role-for-oh-my-zsh-and-other-cli-programs/
+
+# tasks file for oh_my_zsh
+- name: Install Git
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: git
+
+- name: Install Some basic utilities
+  become: true
+  ansible.builtin.package:
+    name: 
+      - vim
+      - htop
+      - stow
+    state: present
+
+- name: Install ZSH
+  become: true
+  ansible.builtin.package:
+    name: zsh
+    state: present
+ 
+- name: Override fd-find package name for Archlinux.
+  ansible.builtin.set_fact:
+    fdfind: fd
+  when: ansible_os_family == 'Archlinux'
+ 
+- name: Install ripgrep
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: ripgrep
+
+- name: Install exa (rust replacement for ls)
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: eza # This replaces the old defunct repo
+ 
+- name: Install procs in Arch/Fedora
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: procs
+ 
+# unzip is useful for extracting zips
+- name: Install unzip
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: unzip
+ 
+# In Ubuntu/Fedora we have to install it from archive
+# so it's better to check if it's already installed
+- name: Check if dust is already installed on Ubuntu/Fedora
+  ansible.builtin.shell: >
+    dust --version
+  register: dust_rc
+  failed_when: false
+  changed_when: false
+  when: ansible_os_family != 'Archlinux'
+ 
+- name: Install dust on Ubuntu/Fedora
+  become: true
+  ansible.builtin.unarchive:
+    src: "https://github.com/bootandy/dust/releases/download/{{ dustversion }}/dust-{{ dustversion }}-x86_64-unknown-linux-gnu.tar.gz"
+    dest: /usr/local/bin
+    extra_opts:
+    - --strip=1
+    - --wildcards
+    - '*/dust'
+    remote_src: true
+ 
+- name: Install fd-find
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: "{{ fdfind }}"
+ 
+- name: Install bat
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: bat
+ 
+# required by the OMZ plugin zsh-interactive-cd
+- name: Install fzf (command-line fuzzy finder)
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: fzf
+
+- name: Install diff-so-fancy (better git diff)
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: diff-so-fancy
+
+- name: Install neofetch
+  become: true
+  ansible.builtin.package:
+    state: present
+    name: neofetch
+ 
+- name: Install Oh My Zsh # noqa: latest
+  ansible.builtin.git:
+    repo: https://github.com/ohmyzsh/ohmyzsh.git
+    dest: ~/.oh-my-zsh
+    depth: 1
+ 
+- name: Install zsh-autosuggestions plugin # noqa: latest
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-autosuggestions
+    dest: ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions
+    depth: 1
+ 
+- name: Install zsh-completions plugin # noqa: latest
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-completions
+    dest: ~/.oh-my-zsh/custom/plugins/zsh-completions
+    depth: 1
+ 
+- name: Install zsh-syntax-highlighting plugin # noqa: latest
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+    dest: ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
+    depth: 1
+ 
+- name: Change user shell to zsh 
+  become: true
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    shell: /bin/zsh
+
