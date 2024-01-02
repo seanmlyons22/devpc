@@ -16,3 +16,28 @@
     - name: Install Rust
       ansible.builtin.shell: /bin/bash /tmp/rust.sh -y
   when: not rust_installed
+
+- name: Install embedded toolchains for Cortex M
+  ansible.builtin.shell: "rustup target add {{item}}"
+  with_items:
+    - thumbv6m-none-eabi 
+    - thumbv7m-none-eabi
+    - thumbv7em-none-eabi
+    - thumbv7m-none-eabi
+    - thumbv8m.main-none-eabi
+
+- name: Install dependencies (to compile cargo tools)
+  become: true
+  ansible.builtin.package:
+    name: 
+      - gcc
+      - openssl-devel
+
+- name: Install LLVM Tools preview
+  ansible.builtin.shell: "rustup component add llvm-tools-preview"
+
+- name: Install Cargo utilities
+  ansible.builtin.shell: "cargo install {{item}}"
+  with_items:
+    - cargo-binutils
+    - cargo-generate
