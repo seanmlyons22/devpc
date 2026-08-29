@@ -1,0 +1,130 @@
+---
+
+# Installs Neovim plus the LazyVim starter config.
+# https://www.lazyvim.org/installation
+
+- name: Install Neovim and its dependencies (Linux)
+  become: true
+  ansible.builtin.package:
+    name: "{{ lazyvim_linux_packages }}"
+    state: present
+  when: ansible_facts['system'] == 'Linux'
+
+- name: Install Neovim and its dependencies (macOS)
+  become: false
+  community.general.homebrew:
+    name: "{{ lazyvim_darwin_packages }}"
+    state: present
+  when: ansible_facts['system'] == 'Darwin'
+
+- name: Install a Nerd Font (macOS)
+  become: false
+  community.general.homebrew_cask:
+    name: "{{ lazyvim_darwin_font_cask }}"
+    state: present
+  when:
+    - ansible_facts['system'] == 'Darwin'
+    - lazyvim_install_font
+
+# Homebrew has a tree-sitter-cli formula; no distro does. cargo is available
+# here because the rust role runs earlier in the play.
+- name: Install tree-sitter-cli with cargo (Linux)
+  community.general.cargo:
+    name: tree-sitter-cli
+    executable: "{{ ansible_facts['env']['HOME'] }}/.cargo/bin/cargo"
+    state: present
+  when:
+    - ansible_facts['system'] == 'Linux'
+    - lazyvim_install_tree_sitter_cli
+
+- name: Get the installed Neovim version
+  ansible.builtin.command: nvim --version
+  register: nvim_version_out
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Parse the Neovim version
+  ansible.builtin.set_fact:
+    nvim_version: >-
+      {{ (nvim_version_out.stdout | regex_search('v([0-9]+\.[0-9]+\.[0-9]+)', '\1')
+          | default([], true) | first | default('', true)) }}
+  when: nvim_version_out.rc == 0
+
+# Skipped under --check, where nothing has actually been installed yet.
+- name: Fail if Neovim is too old for LazyVim
+  ansible.builtin.fail:
+    msg: >-
+      LazyVim needs Neovim >= {{ lazyvim_min_nvim_version }}, but
+      {{ nvim_version_out.stdout_lines[0] }} is installed. Your distro package
+      is out of date -- install a newer Neovim (the official AppImage, a
+      backport repo, or Homebrew) and re-run.
+  when:
+    - nvim_version_out.rc == 0
+    - nvim_version | length > 0
+    - nvim_version is version(lazyvim_min_nvim_version, '<')
+
+- name: Check whether LazyVim is already installed
+  ansible.builtin.stat:
+    path: "{{ lazyvim_config_dir }}/lua/config/lazy.lua"
+  register: lazyvim_marker
+
+- name: Handle a pre-existing Neovim config
+  when: not lazyvim_marker.stat.exists
+  block:
+    - name: Look for an existing Neovim config
+      ansible.builtin.stat:
+        path: "{{ lazyvim_config_dir }}"
+      register: existing_nvim_config
+
+    - name: Refuse to overwrite an existing config
+      ansible.builtin.fail:
+        msg: >-
+          {{ lazyvim_config_dir }} already exists and is not a LazyVim starter.
+          Move it aside yourself, or re-run with
+          -e lazyvim_backup_existing_config=true.
+      when:
+        - existing_nvim_config.stat.exists
+        - not lazyvim_backup_existing_config
+
+    - name: Back up the existing Neovim config
+      ansible.builtin.command:
+        cmd: "mv {{ lazyvim_config_dir }} {{ lazyvim_config_dir }}.bak-{{ ansible_facts['date_time']['epoch'] }}"
+        removes: "{{ lazyvim_config_dir }}"
+      when:
+        - existing_nvim_config.stat.exists
+        - lazyvim_backup_existing_config
+
+    # LazyVim's install notes also have you move these aside, so a stale plugin
+    # state from a previous config cannot confuse the fresh one.
+    - name: Back up Neovim's plugin, state and cache directories
+      ansible.builtin.command:
+        cmd: "mv {{ item }} {{ item }}.bak-{{ ansible_facts['date_time']['epoch'] }}"
+        removes: "{{ item }}"
+      loop:
+        - "{{ ansible_facts['env']['HOME'] }}/.local/share/nvim"
+        - "{{ ansible_facts['env']['HOME'] }}/.local/state/nvim"
+        - "{{ ansible_facts['env']['HOME'] }}/.cache/nvim"
+      when: lazyvim_backup_existing_config
+
+- name: Clone the LazyVim starter
+  ansible.builtin.git:
+    repo: "{{ lazyvim_starter_repo }}"
+    dest: "{{ lazyvim_config_dir }}"
+    version: "{{ lazyvim_starter_version }}"
+    depth: 1
+  when: not lazyvim_marker.stat.exists
+
+# The starter is a template, not something you track upstream. Dropping .git
+# lets you put your own config under version control.
+- name: Detach the starter from its upstream history
+  ansible.builtin.file:
+    path: "{{ lazyvim_config_dir }}/.git"
+    state: absent
+  when: not lazyvim_marker.stat.exists
+
+- name: Explain the first run
+  ansible.builtin.debug:
+    msg: >-
+      LazyVim is installed in {{ lazyvim_config_dir }}. Run `nvim` once to let
+      lazy.nvim bootstrap the plugins, then `:LazyHealth` to check for problems.

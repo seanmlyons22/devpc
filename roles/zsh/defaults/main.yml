@@ -1,0 +1,24 @@
+---
+
+# Formulae installed with Homebrew on macOS. Homebrew has a single package
+# name per tool, so no per-distro overrides are needed here.
+#
+# Differences from the Linux list:
+#   * unzip   -- macOS ships one, no formula needed.
+#   * neofetch -- archived upstream and removed from Homebrew; fastfetch is
+#                 the maintained drop-in replacement.
+zsh_darwin_packages:
+  - git
+  - vim
+  - htop
+  - stow
+  - zsh
+  - ripgrep
+  - eza
+  - procs
+  - dust
+  - fd
+  - bat
+  - fzf
+  - diff-so-fancy
+  - fastfetch

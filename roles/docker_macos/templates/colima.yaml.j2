@@ -1,0 +1,37 @@
+# {{ ansible_managed }}
+#
+# Colima template for new instances. Applies to instances created AFTER this
+# file is written -- an existing VM keeps the settings it was created with.
+# Full schema: `colima template --print` and https://github.com/abiosoft/colima
+#
+# Sized for this host: {{ (ansible_facts['memtotal_mb'] | int / 1024) | round | int }} GiB RAM, {{ ansible_facts['processor_vcpus'] }} logical cores.
+
+# {{ colima_memory_percent }}% of host RAM.
+memory: {{ colima_memory_gib }}
+cpu: {{ colima_cpu }}
+disk: {{ colima_disk_gib }}
+
+arch: host
+runtime: docker
+
+# Apple Virtualization.framework. Colima's own default here is qemu.
+vmType: {{ colima_vm_type }}
+
+# Colima's own default here is sshfs; virtiofs needs vmType vz.
+mountType: {{ colima_mount_type }}
+
+# amd64 emulation through Rosetta rather than qemu.
+rosetta: {{ colima_rosetta | bool | lower }}
+
+# Declared explicitly on purpose -- see colima_mounts in defaults/main.yml.
+mounts:
+{% for m in colima_mounts %}
+  - location: {{ m.location }}
+    writable: {{ m.writable | bool | lower }}
+{% endfor %}
+
+mountInotify: {{ colima_mount_inotify | bool | lower }}
+nestedVirtualization: {{ colima_nested_virtualization | bool | lower }}
+
+# Set the docker context on startup so the `docker` CLI just works.
+autoActivate: true

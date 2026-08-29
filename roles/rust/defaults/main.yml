@@ -1,0 +1,22 @@
+---
+
+# Build dependencies for compiling cargo tools from source.
+# On Linux these come from the distro (Fedora naming); on macOS the compiler
+# comes from the Xcode Command Line Tools and only the libraries are brewed.
+rust_linux_build_deps:
+  - gcc
+  - openssl-devel
+
+rust_darwin_build_deps:
+  - openssl@3
+  - pkgconf
+
+rust_embedded_targets:
+  - thumbv6m-none-eabi
+  - thumbv7m-none-eabi
+  - thumbv7em-none-eabi
+  - thumbv8m.main-none-eabi
+
+rust_cargo_utilities:
+  - cargo-binutils
+  - cargo-generate

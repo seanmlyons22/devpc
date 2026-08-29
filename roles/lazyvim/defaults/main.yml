@@ -1,0 +1,42 @@
+---
+
+# LazyVim needs Neovim >= 0.11.2 built with LuaJIT. Distro packages are often
+# older than this (Ubuntu LTS in particular), so we check rather than assume.
+lazyvim_min_nvim_version: "0.11.2"
+
+lazyvim_config_dir: "{{ ansible_facts['env']['HOME'] }}/.config/nvim"
+
+# The starter repo LazyVim tells you to clone.
+lazyvim_starter_repo: https://github.com/LazyVim/starter
+lazyvim_starter_version: main
+
+# If a non-LazyVim Neovim config is already in place, move it aside rather than
+# clobbering it. Set to false to abort instead.
+lazyvim_backup_existing_config: true
+
+# Linux packages. Only things every supported distro actually ships:
+#   * gcc/make -- nvim-treesitter compiles parsers
+#   * curl     -- blink.cmp downloads its prebuilt binary
+# lazygit is deliberately absent: it is not in Fedora's official repos (it
+# needs a COPR) and is missing from older Ubuntu, so adding it here would break
+# the run. Add it to this list if your distro has it.
+lazyvim_linux_packages:
+  - neovim
+  - gcc
+  - make
+  - curl
+
+# macOS packages. Homebrew has all of these, including lazygit.
+lazyvim_darwin_packages:
+  - neovim
+  - lazygit
+  - tree-sitter-cli
+
+# A Nerd Font is optional but LazyVim's icons need one. Homebrew packages these
+# as casks; on Linux you are on your own (nerd-fonts is rarely packaged).
+lazyvim_darwin_font_cask: font-jetbrains-mono-nerd-font
+lazyvim_install_font: true
+
+# tree-sitter-cli is not packaged on Linux, but the rust role runs before this
+# one, so cargo is available to build it.
+lazyvim_install_tree_sitter_cli: true

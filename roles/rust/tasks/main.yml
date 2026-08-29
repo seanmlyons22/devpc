@@ -1,43 +1,54 @@
 ---
 
+- name: Set the cargo bin directory
+  ansible.builtin.set_fact:
+    cargo_bin: "{{ ansible_facts['env']['HOME'] }}/.cargo/bin"
+
+- name: Install build dependencies (to compile cargo tools) on Linux
+  become: true
+  ansible.builtin.package:
+    name: "{{ rust_linux_build_deps }}"
+    state: present
+  when: ansible_facts['system'] == 'Linux'
+
+- name: Install build dependencies (to compile cargo tools) on macOS
+  become: false
+  community.general.homebrew:
+    name: "{{ rust_darwin_build_deps }}"
+    state: present
+  when: ansible_facts['system'] == 'Darwin'
+
 - name: Check if rust is installed
   ansible.builtin.stat:
-    path: $HOME/.cargo/bin/rustup
+    path: "{{ cargo_bin }}/rustup"
   register: rust_installed
 
 - name: Install Rust
-  block: 
+  when: not rust_installed.stat.exists
+  block:
     - name: Download Rust install script
-      ansible.builtin.shell: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rust.sh
-      args:
-        chdir: /tmp
-        creates: rust.sh
+      ansible.builtin.get_url:
+        url: https://sh.rustup.rs
+        dest: /tmp/rust.sh
+        mode: "0755"
 
     - name: Install Rust
-      ansible.builtin.shell: /bin/bash /tmp/rust.sh -y
-  when: not rust_installed
+      ansible.builtin.command: /bin/bash /tmp/rust.sh -y
+      changed_when: true
 
 - name: Install embedded toolchains for Cortex M
-  ansible.builtin.shell: "rustup target add {{item}}"
-  with_items:
-    - thumbv6m-none-eabi 
-    - thumbv7m-none-eabi
-    - thumbv7em-none-eabi
-    - thumbv7m-none-eabi
-    - thumbv8m.main-none-eabi
-
-- name: Install dependencies (to compile cargo tools)
-  become: true
-  ansible.builtin.package:
-    name: 
-      - gcc
-      - openssl-devel
+  ansible.builtin.command: "{{ cargo_bin }}/rustup target add {{ item }}"
+  register: rustup_target
+  changed_when: "'up to date' not in (rustup_target.stdout + rustup_target.stderr)"
+  loop: "{{ rust_embedded_targets }}"
 
 - name: Install LLVM Tools preview
-  ansible.builtin.shell: "rustup component add llvm-tools-preview"
+  ansible.builtin.command: "{{ cargo_bin }}/rustup component add llvm-tools-preview"
+  register: rustup_component
+  changed_when: "'up to date' not in (rustup_component.stdout + rustup_component.stderr)"
 
 - name: Install Cargo utilities
-  ansible.builtin.shell: "cargo install {{item}}"
-  with_items:
-    - cargo-binutils
-    - cargo-generate
+  community.general.cargo:
+    name: "{{ rust_cargo_utilities }}"
+    executable: "{{ cargo_bin }}/cargo"
+    state: present

@@ -1,5 +1,13 @@
 ---
 
-# For installing docker
-- src: https://github.com/geerlingguy/ansible-role-docker.git
-  version: "7.0.2"
+roles:
+  # For installing docker (Linux only)
+  - name: geerlingguy.docker
+    src: https://github.com/geerlingguy/ansible-role-docker.git
+    version: "7.0.2"
+
+collections:
+  # flatpak (Linux), homebrew and homebrew_cask (macOS).
+  # Already bundled with the `ansible` package, but listed so that a bare
+  # ansible-core install works too.
+  - name: community.general

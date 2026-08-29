@@ -1,0 +1,71 @@
+---
+
+# Homebrew is the package manager every other macOS task builds on. We verify
+# it rather than install it, because you already need Homebrew to get Ansible
+# onto the machine in the first place (see the README).
+
+- name: Check for the Xcode Command Line Tools
+  ansible.builtin.command: xcode-select --print-path
+  register: xcode_clt
+  changed_when: false
+  failed_when: false
+  check_mode: false   # this is a probe; it must run even under --check
+
+- name: Fail if the Xcode Command Line Tools are missing
+  ansible.builtin.fail:
+    msg: >-
+      The Xcode Command Line Tools are not installed; Homebrew and the Rust
+      toolchain both need them. Install them with `xcode-select --install`
+      and re-run this playbook.
+  when: xcode_clt.rc != 0
+
+- name: Locate the brew executable
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: brew_candidates
+  loop:
+    - /opt/homebrew/bin/brew   # Apple silicon
+    - /usr/local/bin/brew      # Intel
+
+- name: Record the path to the brew executable
+  ansible.builtin.set_fact:
+    homebrew_bin: "{{ (brew_candidates.results | selectattr('stat.exists') | map(attribute='stat.path') | list | first) | default('', true) }}"
+
+- name: Fail if Homebrew is not installed
+  ansible.builtin.fail:
+    msg: >-
+      Homebrew was not found in /opt/homebrew or /usr/local. Install it with:
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      then re-run this playbook.
+  when: homebrew_bin | length == 0
+
+# Homebrew's own installer tells you to append this by hand. If you already
+# did, leave it alone rather than adding a second eval that puts the prefix on
+# PATH twice.
+- name: Check for a hand-written Homebrew shellenv line
+  ansible.builtin.shell:
+    cmd: >-
+      grep -q 'brew shellenv' {{ ansible_facts['env']['HOME'] }}/.zprofile
+      && ! grep -q 'ANSIBLE MANAGED BLOCK (homebrew)' {{ ansible_facts['env']['HOME'] }}/.zprofile
+  register: manual_shellenv
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Add Homebrew to the login shell environment
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_facts['env']['HOME'] }}/.zprofile"
+    create: true
+    mode: "0644"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK (homebrew)"
+    block: |
+      eval "$({{ homebrew_bin }} shellenv zsh)"
+  when:
+    - homebrew_manage_zprofile
+    - manual_shellenv.rc != 0
+
+- name: Install extra Homebrew packages
+  community.general.homebrew:
+    name: "{{ homebrew_extra_packages }}"
+    state: present
+  when: homebrew_extra_packages | length > 0

@@ -1,0 +1,71 @@
+---
+
+# Which Docker to install on macOS:
+#
+#   colima  -- Docker CLI plus a Lima VM. The closest analogue to the Docker
+#              Engine that geerlingguy.docker installs on Linux: no GUI, no
+#              licence strings, and it installs entirely in user space so the
+#              playbook never needs a password. This is the default.
+#
+#   desktop -- Docker Desktop. A commercial product (paid subscription required
+#              at larger companies), and its cask symlinks into /usr/local/bin
+#              with `sudo: if_needed`, so Homebrew may need a password that
+#              Ansible cannot answer. Run `sudo -v` immediately before the
+#              playbook if you pick this.
+docker_macos_flavor: colima
+
+# ---------------------------------------------------------------------------
+# Colima VM sizing
+# ---------------------------------------------------------------------------
+
+# Memory as a percentage of host RAM. macOS compresses and swaps aggressively,
+# so the VM does not pin this much RSS -- but it is a hard ceiling for the
+# guest, so leaving half the machine to the host is the safe split.
+colima_memory_percent: 50
+colima_memory_gib: "{{ (ansible_facts['memtotal_mb'] | int * (colima_memory_percent | int) / 100 / 1024) | round | int }}"
+
+# Half the logical cores, floor, never below 2. Under vz, guest vCPUs are just
+# host threads competing with everything else, so allocating all of them makes
+# a heavy `docker build` fight the UI for the same cores rather than run faster.
+colima_cpu: "{{ [2, (ansible_facts['processor_vcpus'] | int // 2)] | max }}"
+
+# Sparse -- it does not consume the space until the guest writes it.
+# NOTE: can be grown later, never shrunk, and only while the VM is stopped.
+colima_disk_gib: 100
+
+# ---------------------------------------------------------------------------
+# Apple silicon tuning
+#
+# The three below are what actually make Colima fast on an M-series Mac, and
+# all three differ from the values Colima writes into its own default template.
+# NOTE: vmType, mountType and arch are all fixed at VM creation time. Changing
+# them later means `colima delete` and starting over.
+# ---------------------------------------------------------------------------
+
+# Apple's Virtualization.framework rather than emulating hardware with qemu.
+colima_vm_type: vz
+
+# Requires vmType vz. The fastest of the three drivers (vs 9p and sshfs), which
+# matters because bind-mounted source trees are the usual bottleneck.
+colima_mount_type: virtiofs
+
+# Requires vz + Apple silicon. Runs amd64 images through Rosetta's binary
+# translation instead of qemu's interpreter -- the difference is large when you
+# have to run an x86-only image.
+colima_rosetta: true
+
+# Host paths mounted into the VM. This MUST be declared explicitly: omitting
+# the key writes `mounts: null` into the instance config, which is NOT the same
+# as Colima's documented `[]` default and leaves nothing mounted -- `docker run
+# -v $PWD:/x` then silently gives the container an empty directory.
+colima_mounts:
+  - location: "{{ ansible_facts['env']['HOME'] }}"
+    writable: true
+
+# Experimental. Propagates inotify events into the VM so file-watchers and
+# hot-reload work on bind mounts. Off by default because it is not yet stable.
+colima_mount_inotify: false
+
+# Requires an M3 or newer. Only useful if you run VMs or nested hypervisors
+# inside containers, so it is off by default.
+colima_nested_virtualization: false

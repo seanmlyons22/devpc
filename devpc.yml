@@ -1,10 +1,28 @@
 ---
 
-- hosts: localhost
+- name: Set up a development machine
+  hosts: localhost
   connection: local
+  gather_facts: true
+
   roles:
+    # macOS has no system package manager, so everything else depends on this.
+    - role: homebrew
+      when: ansible_facts['system'] == 'Darwin'
+
     - zsh
     - rust
-    - { role: geerlingguy.docker,  become: true }
-    - neovim
-    - obsidian
+
+    # geerlingguy.docker installs the Docker Engine, which only exists on Linux.
+    - role: geerlingguy.docker
+      become: true
+      when: ansible_facts['system'] == 'Linux'
+
+    - role: docker_macos
+      when: ansible_facts['system'] == 'Darwin'
+
+    # Must run after rust: on Linux, tree-sitter-cli is built with cargo.
+    - lazyvim
+
+    - role: macos_defaults
+      when: ansible_facts['system'] == 'Darwin'

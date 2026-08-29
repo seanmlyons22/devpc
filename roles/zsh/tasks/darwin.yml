@@ -1,0 +1,21 @@
+---
+
+# tasks file for oh_my_zsh -- macOS package installation.
+#
+# Homebrew refuses to run as root, so nothing here uses `become`. The formulae
+# land in the Homebrew prefix, which is already owned by the current user.
+
+- name: Install CLI utilities with Homebrew
+  become: false
+  community.general.homebrew:
+    name: "{{ zsh_darwin_packages }}"
+    state: present
+
+# zsh has been the default login shell on macOS since Catalina, and rewriting
+# it through dscl on a machine you are logged into is not worth the risk.
+- name: Report the current login shell
+  ansible.builtin.debug:
+    msg: >-
+      Login shell is {{ ansible_facts['env']['SHELL'] | default('unknown') }}. macOS
+      defaults to /bin/zsh; change it in System Settings if that is not the
+      case.

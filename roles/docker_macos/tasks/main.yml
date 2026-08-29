@@ -1,0 +1,93 @@
+---
+
+# The Linux side of this playbook uses geerlingguy.docker to install the Docker
+# Engine. There is no Docker Engine on macOS -- containers run inside a Linux
+# VM -- so macOS gets its own role instead.
+
+- name: Fail on an unknown Docker flavour
+  ansible.builtin.fail:
+    msg: "docker_macos_flavor must be 'desktop' or 'colima', got '{{ docker_macos_flavor }}'"
+  when: docker_macos_flavor not in ['desktop', 'colima']
+
+- name: Install Docker Desktop
+  become: false
+  community.general.homebrew_cask:
+    name: docker-desktop   # the plain `docker` cask was renamed in 2025
+    state: present
+  when: docker_macos_flavor == 'desktop'
+
+- name: Configure Colima
+  when: docker_macos_flavor == 'colima'
+  block:
+    - name: Install the Docker CLI and Colima
+      become: false
+      community.general.homebrew:
+        name:
+          - docker
+          - docker-compose
+          - colima
+        state: present
+
+    # The template module will not create missing parent directories, and
+    # ~/.colima does not exist until Colima first runs.
+    - name: Ensure the Colima template directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_facts['env']['HOME'] }}/.colima/_templates"
+        state: directory
+        mode: "0755"
+
+    - name: Write the Colima instance template
+      ansible.builtin.template:
+        src: colima.yaml.j2
+        dest: "{{ ansible_facts['env']['HOME'] }}/.colima/_templates/default.yaml"
+        mode: "0644"
+
+    # vmType, mountType and arch are fixed when the VM is created, so a VM that
+    # already exists will not pick up the template. Say so rather than letting
+    # the settings look applied when they are not.
+    # Colima only warns and carries on when rosetta is requested but missing,
+    # so the VM comes up silently without amd64 acceleration. Test it properly:
+    # /usr/libexec/rosetta/oahd exists even when Rosetta is NOT installed, so
+    # only actually running an x86_64 binary tells the truth.
+    - name: Check whether Rosetta 2 is usable
+      ansible.builtin.command: arch -x86_64 /usr/bin/true
+      register: rosetta_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when: colima_rosetta | bool
+
+    - name: Warn if Rosetta 2 is missing
+      ansible.builtin.debug:
+        msg: >-
+          colima_rosetta is enabled but Rosetta 2 is not installed, so amd64
+          images will fall back to qemu emulation. Install it with
+          `softwareupdate --install-rosetta` (needs your password and a licence
+          agreement, so the playbook cannot do it), then `colima delete` and
+          `colima start` to pick it up.
+      when:
+        - colima_rosetta | bool
+        - rosetta_check.rc is defined
+        - rosetta_check.rc != 0
+
+    - name: Check for an existing Colima VM
+      ansible.builtin.command: colima list --json
+      register: colima_list
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Report how to start Colima
+      ansible.builtin.debug:
+        msg: >-
+          {% if colima_list.stdout | trim | length > 0 %}
+          A Colima VM already exists, so the template does NOT apply to it --
+          vmType, mountType and arch are fixed at creation. To adopt these
+          settings: `colima delete` then `colima start`.
+          {% else %}
+          Colima is configured but not running. Start it with `colima start`
+          to create the VM with {{ colima_memory_gib }} GiB RAM
+          ({{ colima_memory_percent }}% of {{ (ansible_facts['memtotal_mb'] | int / 1024) | round | int }} GiB),
+          {{ colima_cpu }} of {{ ansible_facts['processor_vcpus'] }} vCPUs, a {{ colima_disk_gib }} GiB disk,
+          vmType={{ colima_vm_type }}, mountType={{ colima_mount_type }}, rosetta={{ colima_rosetta | bool | lower }}.
+          {% endif %}

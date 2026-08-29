@@ -1,0 +1,7 @@
+---
+
+# Extra formulae that do not belong to any single role.
+homebrew_extra_packages: []
+
+# Keep Homebrew's shell environment wired into new login shells.
+homebrew_manage_zprofile: true

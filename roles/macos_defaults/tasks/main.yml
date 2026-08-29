@@ -1,0 +1,72 @@
+---
+
+# Applies macOS settings via `defaults write`, so a rebuilt machine does not
+# have to be reconfigured by hand in System Settings.
+#
+# These are per-user preferences, so nothing here needs sudo (the exception,
+# the computer name, is opt-in and gated below).
+
+- name: Apply macOS defaults
+  become: false
+  community.general.osx_defaults:
+    domain: "{{ item.domain }}"
+    key: "{{ item.key }}"
+    type: "{{ item.type }}"
+    value: "{{ item.value }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ macos_defaults_settings }}"
+  loop_control:
+    label: "{{ item.domain }} :: {{ item.key }}"
+  register: macos_defaults_applied
+
+- name: Apply language and region
+  become: false
+  community.general.osx_defaults:
+    domain: "{{ item.domain }}"
+    key: "{{ item.key }}"
+    type: "{{ item.type }}"
+    value: "{{ item.value }}"
+    state: present
+  loop: "{{ macos_locale_settings }}"
+  loop_control:
+    label: "{{ item.domain }} :: {{ item.key }}"
+  when: macos_defaults_apply_locale | bool
+
+# Only bounce the apps whose own settings actually changed, rather than
+# restarting Dock and Finder on every run.
+- name: Restart affected apps
+  become: false
+  ansible.builtin.command: "killall {{ item }}"
+  loop: >-
+    {{ macos_defaults_applied.results
+       | selectattr('changed')
+       | selectattr('item.restart', 'defined')
+       | map(attribute='item.restart')
+       | unique | list }}
+  changed_when: true
+  # killall exits non-zero when the process is not running, which is fine.
+  failed_when: false
+
+- name: Set the computer name
+  become: true
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - scutil --set ComputerName "{{ macos_computer_name }}"
+    - scutil --set LocalHostName "{{ macos_local_host_name }}"
+    - scutil --set HostName "{{ macos_local_host_name }}"
+  when: macos_set_computer_name | bool
+  changed_when: true
+
+# Trackpad and keyboard preferences are read by the window server at login, so
+# they are written now but not live until the next one.
+- name: Note settings that need a logout
+  become: false
+  ansible.builtin.debug:
+    msg: >-
+      Trackpad and keyboard settings are read at login. Log out and back in
+      for them to take effect.
+  when: >-
+    macos_defaults_applied.results
+    | selectattr('changed')
+    | selectattr('item.domain', 'search', 'Multitouch|NSGlobalDomain')
+    | list | length > 0
