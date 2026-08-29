@@ -13,7 +13,7 @@ and supports both Linux (Fedora/Arch/Ubuntu) and macOS.
 | Rust | rustup, Cortex-M targets, `llvm-tools-preview`, cargo-binutils, cargo-generate | same |
 | Docker | Docker Engine via `geerlingguy.docker` | Colima + Docker CLI, or Docker Desktop (see below) |
 | Editor | Neovim + the LazyVim starter config | same, plus lazygit and a Nerd Font |
-| System settings | — | Dock, Finder, trackpad, text input, menu bar (see below) |
+| System settings | - | Dock, Finder, trackpad, text input, menu bar (see below) |
 
 ## Installing Ansible
 
@@ -48,7 +48,7 @@ install Ansible from Homebrew rather than the system Python.
    ```
 
 The playbook verifies steps 1 and 2 and fails with instructions if either is
-missing — it deliberately does not install Homebrew for you, since you already
+missing - it deliberately does not install Homebrew for you, since you already
 need Homebrew to get this far.
 
 ### Linux
@@ -76,7 +76,7 @@ your password:
 ansible-playbook -K devpc.yml
 ```
 
-On macOS nothing runs under `sudo` — Homebrew refuses to run as root — so drop
+On macOS nothing runs under `sudo` - Homebrew refuses to run as root - so drop
 the `-K`:
 
 ```bash
@@ -86,7 +86,7 @@ ansible-playbook devpc.yml
 ### Docker on macOS
 
 macOS has no Docker Engine; containers run inside a Linux VM. The default here
-is **Colima** — the Docker CLI plus a Lima VM. It is the closest analogue to
+is **Colima** - the Docker CLI plus a Lima VM. It is the closest analogue to
 what `geerlingguy.docker` installs on Linux: no GUI, no licence strings, and it
 installs entirely in user space, which is why the macOS run needs no password
 at all. Start it after the playbook finishes:
@@ -95,7 +95,7 @@ at all. Start it after the playbook finishes:
 colima start
 ```
 
-No flags needed — the role writes a tuned instance template to
+No flags needed - the role writes a tuned instance template to
 `~/.colima/_templates/default.yaml`, which `colima start` picks up when it
 creates the VM.
 
@@ -119,23 +119,23 @@ machine you run it on:
 | vCPUs | half the logical cores, floor, min 2 | `-e colima_cpu=8` |
 | Disk | 100 GiB, sparse | `-e colima_disk_gib=200` |
 
-Memory is a ceiling, not a reservation, but the guest cannot exceed it — half
+Memory is a ceiling, not a reservation, but the guest cannot exceed it - half
 leaves the host its own half. All the vCPUs are worth *not* allocating: under
 `vz` they are host threads competing with everything else, so a heavy
 `docker build` given every core fights your UI rather than finishing sooner.
 
 Two more are off by default and worth knowing about:
 
-* `colima_mount_inotify` — propagates inotify events into the VM so
+* `colima_mount_inotify` - propagates inotify events into the VM so
   file-watchers and hot-reload work on bind mounts. Still experimental.
-* `colima_nested_virtualization` — M3 or newer; only useful for running VMs
+* `colima_nested_virtualization` - M3 or newer; only useful for running VMs
   inside containers.
 
 `rosetta: true` needs **Rosetta 2 actually installed on the host**. Colima only
 logs a warning if it is missing and starts anyway, so amd64 images quietly fall
-back to qemu emulation. The role tests this properly — by running an x86_64
+back to qemu emulation. The role tests this properly - by running an x86_64
 binary, since `/usr/libexec/rosetta/oahd` exists even when Rosetta is *not*
-installed — and tells you if it is missing. Installing it needs your password
+installed - and tells you if it is missing. Installing it needs your password
 and a licence agreement, so the playbook cannot:
 
 ```bash
@@ -146,7 +146,7 @@ Then `colima delete && colima start` to pick it up.
 
 The template also declares `mounts` explicitly. This is not cosmetic: leaving
 the key out writes `mounts: null` into the instance config, which is *not* the
-same as Colima's documented `[]` default and results in nothing being mounted —
+same as Colima's documented `[]` default and results in nothing being mounted -
 `docker run -v $PWD:/x` then hands the container an empty directory with no
 error. `$HOME` is mounted writable.
 
@@ -164,7 +164,7 @@ sudo -v && ansible-playbook devpc.yml -e docker_macos_flavor=desktop
 The `sudo -v` matters: the `docker-desktop` cask symlinks into `/usr/local/bin`
 with `sudo: if_needed`, and Homebrew's password prompt has no terminal to
 appear on when it runs under Ansible. Priming the sudo timestamp first avoids a
-hang. Note that Docker Desktop is a commercial product — a paid subscription is
+hang. Note that Docker Desktop is a commercial product - a paid subscription is
 required at larger companies.
 
 ### Neovim / LazyVim
@@ -187,11 +187,11 @@ message if your distro package is older, which it will be on Ubuntu LTS.
 
 Two dependencies are handled differently per platform:
 
-* **lazygit** — installed from Homebrew on macOS. Left out of the Linux list on
+* **lazygit** - installed from Homebrew on macOS. Left out of the Linux list on
   purpose: it is not in Fedora's official repos (it needs a COPR) and is absent
   from older Ubuntu, so including it would break the run. Add it to
   `lazyvim_linux_packages` if your distro has it.
-* **tree-sitter-cli** — a Homebrew formula on macOS, but not packaged on Linux,
+* **tree-sitter-cli** - a Homebrew formula on macOS, but not packaged on Linux,
   so there it is built with `cargo`. This is why `lazyvim` runs after `rust` in
   the playbook. Disable with `-e lazyvim_install_tree_sitter_cli=false`.
 
@@ -206,7 +206,7 @@ hand. It runs on macOS only.
 
 Every entry in `roles/macos_defaults/defaults/main.yml` was **read off a real
 machine** with `defaults read`, not copied from a generic list. Keys that read
-back as unset are deliberately not listed — unset means "macOS stock default",
+back as unset are deliberately not listed - unset means "macOS stock default",
 and writing the stock value explicitly just adds noise.
 
 One honest caveat about what that list represents: a key being present in a
@@ -225,7 +225,7 @@ Both trackpad domains are set on purpose:
 Trackpads and `com.apple.AppleMultitouchTrackpad` the built-in one. macOS keeps
 them separate, so setting only one leaves the other device unconfigured.
 
-Apps are restarted only when their own settings actually changed — a no-op run
+Apps are restarted only when their own settings actually changed - a no-op run
 does not bounce your Dock and Finder. Trackpad and keyboard settings are read
 at login, so those need a logout; the role says so when it changes one.
 
@@ -247,7 +247,7 @@ firewall.
 ## The role does not write a `.zshrc`
 
 Deliberately. It clones `~/.oh-my-zsh` and the three plugins, but never creates
-`~/.zshrc` — so a freshly provisioned machine has Oh My Zsh on disk and *not*
+`~/.zshrc` - so a freshly provisioned machine has Oh My Zsh on disk and *not*
 active in your shell until you supply one.
 
 This is what `stow` is installed for: bring your own dotfiles repo and stow it.
